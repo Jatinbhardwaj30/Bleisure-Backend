@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat Room</title>
+</head>
+<body>
+    <div id="chat-log"></div>
+    <input id="chat-message-input" type="text" size="100">
+    <input id="chat-message-submit" type="button" value="Send">
+
+    <script>
+        const hatSocket = new WebSocket('ws://localhost:8000/ws/chat/testroom/');
+        hatSocket.onopen = () => console.log('WebSocket connection established');
+        hatSocket.onmessage = (e) => console.log('Message from server:', e.data);
+        hatSocket.onerror = (e) => console.error('WebSocket error:', e);
+        hatSocket.onclose = () => console.log('WebSocket connection closed');
+
+        const roomName = "testroom";  // Replace with dynamic room name
+        const chatSocket = new WebSocket(
+            'ws://' + '127.0.0.1:8000' + '/ws/chat/' + roomName + '/'
+        );
+
+        chatSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            document.querySelector('#chat-log').innerHTML += (data.message + '<br>');
+        };
+
+        chatSocket.onclose = function(e) {
+            console.error('Chat socket closed unexpectedly');
+        };
+
+        document.querySelector('#chat-message-input').focus();
+        document.querySelector('#chat-message-input').onkeyup = function(e) {
+            if (e.keyCode === 13) {  // Enter key
+                document.querySelector('#chat-message-submit').click();
+            }
+        };
+
+        document.querySelector('#chat-message-submit').onclick = function(e) {
+            const messageInputDom = document.querySelector('#chat-message-input');
+            const message = messageInputDom.value;
+            chatSocket.send(JSON.stringify({
+                'type': 'chat_message',
+                'message': message
+            }));
+            messageInputDom.value = '';
+        };
+    </script>
+</body>
+</html>
