@@ -1,4 +1,4 @@
-from rest_framework import status, generics
+from rest_framework import status, generics, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
@@ -566,38 +566,6 @@ class EventRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
                 },
                 status=status.HTTP_404_NOT_FOUND
             )
-
-
-class SubEventListAPIView(generics.ListAPIView):
-    """
-    API endpoint for listing sub-events within an event.
-    
-    GET /api/bleisure/events/{event_id}/sub-events/
-    - List all sub-events for a specific event
-    - Supports filtering by type: ?type=agenda or ?type=side_event
-    """
-    
-    serializer_class = SubEventSerializer
-    permission_classes = []
-    
-    def get_queryset(self):
-        """
-        Filter sub-events by event_id and optional type parameter.
-        Validates that the parent event exists and is active.
-        """
-        event_id = self.kwargs.get('event_id')
-        
-        # Validate parent event exists and is active
-        get_object_or_404(Event, id=event_id, is_active=True)
-        
-        queryset = SubEvent.objects.filter(event_id=event_id).order_by('start_time')
-        
-        # Filter by type if provided
-        type_param = self.request.query_params.get('type')
-        if type_param:
-            queryset = queryset.filter(type=type_param)
-        
-        return queryset
 
 
 class EventMarkInterestedAPIView(APIView):

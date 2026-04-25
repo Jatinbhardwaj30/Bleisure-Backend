@@ -162,22 +162,68 @@ class ProfileDetailSerializer(serializers.ModelSerializer):
 
 class SubEventSerializer(serializers.ModelSerializer):
     """
-    Serializer for SubEvent objects.
-    Used for nested sub-events within Event details.
+    Serializer for SubEvent objects with full CRUD and validation.
+    Handles time conflict validation and speaker linking.
     """
+    
+    speaker_name = serializers.CharField(source='speaker.name', read_only=True)
+    event_title = serializers.CharField(source='event.title', read_only=True)
     
     class Meta:
         model = SubEvent
         fields = [
             'id',
+            'event',
+            'event_title',
             'title',
             'type',
             'start_time',
             'end_time',
             'location',
-            'description'
+            'description',
+            'speaker',
+            'speaker_name',
+            'external_url',
+            'created_at',
+            'updated_at'
         ]
-        read_only_fields = ['id']
+        read_only_fields = ['id', 'event', 'event_title', 'speaker_name', 'created_at', 'updated_at']
+    
+    def validate(self, data):
+        """
+        Validate:
+        - End time is after start time
+        - No time conflicts with other sub-events in same event
+        """
+        start_time = data.get('start_time')
+        end_time = data.get('end_time')
+        
+        # Validate end time is after start time
+        if end_time and start_time and end_time <= start_time:
+            raise serializers.ValidationError({
+                'end_time': 'End time must be after start time'
+            })
+        
+        # Validate time conflicts
+        event = self.context.get('event')
+        if event and start_time and end_time:
+            overlapping = SubEvent.objects.filter(
+                event=event,
+                start_time__lt=end_time,
+                end_time__gt=start_time
+            )
+            
+            # Exclude current instance if updating
+            if self.instance:
+                overlapping = overlapping.exclude(id=self.instance.id)
+            
+            if overlapping.exists():
+                conflicting_titles = ', '.join([e.title for e in overlapping[:3]])
+                raise serializers.ValidationError({
+                    'start_time': f'Time overlaps with: {conflicting_titles}'
+                })
+        
+        return data
 
 
 class SpeakerSerializer(serializers.ModelSerializer):
@@ -248,6 +294,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Event
         fields = [
+            'id',
             'title',
             'description',
             'start_date',

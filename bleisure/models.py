@@ -433,6 +433,21 @@ class SubEvent(models.Model):
         help_text="Description of sub-event"
     )
     
+    speaker = models.ForeignKey(
+        'Speaker',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sub_events',
+        help_text="Speaker for this sub-event (optional)"
+    )
+    
+    external_url = models.URLField(
+        null=True,
+        blank=True,
+        help_text="External URL (live stream, registration link, etc.)"
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
