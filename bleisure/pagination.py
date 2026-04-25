@@ -2,9 +2,9 @@ from rest_framework.pagination import CursorPagination
 from rest_framework.response import Response
 
 
-class ConferenceCursorPagination(CursorPagination):
+class EventCursorPagination(CursorPagination):
     """
-    Custom cursor-based pagination for Conference list API.
+    Custom cursor-based pagination for Event list API.
     Provides scalable pagination for large datasets.
     
     Features:

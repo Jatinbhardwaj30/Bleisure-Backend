@@ -109,16 +109,23 @@ class UserProfile(models.Model):
         return f"Profile of {self.user.email} - {self.user.full_name}"
 
 
-class Conference(models.Model):
+class Event(models.Model):
     """
-    Conference model for conference platform.
-    Stores information about conferences with slug generation and deduplication.
+    Event model for events platform.
+    Stores information about events (conferences, workshops, webinars, meetups) with slug generation and deduplication.
     """
+    
+    EVENT_TYPE_CHOICES = [
+        ('conference', 'Conference'),
+        ('workshop', 'Workshop'),
+        ('webinar', 'Webinar'),
+        ('meetup', 'Meetup'),
+    ]
     
     # Primary and identifiers
     title = models.CharField(
         max_length=255,
-        help_text="Conference title"
+        help_text="Event title"
     )
     
     slug = models.SlugField(
@@ -130,7 +137,27 @@ class Conference(models.Model):
     description = models.TextField(
         null=True,
         blank=True,
-        help_text="Detailed description of the conference"
+        help_text="Detailed description of the event"
+    )
+    
+    type = models.CharField(
+        max_length=50,
+        choices=EVENT_TYPE_CHOICES,
+        default='conference',
+        help_text="Type of event"
+    )
+    
+    category = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        help_text="Category of event"
+    )
+    
+    tags = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Tags for event organization"
     )
     
     # Date and time information
@@ -146,12 +173,12 @@ class Conference(models.Model):
     city = models.CharField(
         max_length=100,
         db_index=True,
-        help_text="City where conference is held"
+        help_text="City where event is held"
     )
     
     country = models.CharField(
         max_length=100,
-        help_text="Country where conference is held"
+        help_text="Country where event is held"
     )
     
     venue = models.CharField(
@@ -161,21 +188,97 @@ class Conference(models.Model):
         help_text="Venue/location details"
     )
     
+    address = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Full address of the event"
+    )
+    
+    latitude = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Latitude coordinate"
+    )
+    
+    longitude = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Longitude coordinate"
+    )
+    
     timezone = models.CharField(
         max_length=50,
         default='UTC',
-        help_text="Timezone of the conference"
+        help_text="Timezone of the event"
+    )
+    
+    # Organizer information
+    organizer_name = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="Name of event organizer"
+    )
+    
+    # Pricing information
+    price_min = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Minimum ticket price"
+    )
+    
+    price_max = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Maximum ticket price"
+    )
+    
+    currency = models.CharField(
+        max_length=10,
+        default='INR',
+        help_text="Currency for pricing"
+    )
+    
+    is_free = models.BooleanField(
+        default=False,
+        help_text="Whether the event is free"
+    )
+    
+    # Media
+    banner_image = models.URLField(
+        null=True,
+        blank=True,
+        help_text="URL of banner image"
+    )
+    
+    # URLs
+    website_url = models.URLField(
+        null=True,
+        blank=True,
+        help_text="Official website URL"
+    )
+    
+    registration_url = models.URLField(
+        null=True,
+        blank=True,
+        help_text="Registration/ticket URL"
+    )
+    
+    # Featured flag
+    is_featured = models.BooleanField(
+        default=False,
+        help_text="Whether the event is featured"
     )
     
     # Engagement metrics
     rating = models.FloatField(
         default=0.0,
-        help_text="Conference rating (0-5)"
+        help_text="Event rating (0-5)"
     )
     
     interested_count = models.IntegerField(
         default=0,
-        help_text="Number of users interested in this conference"
+        help_text="Number of users interested in this event"
     )
     
     # Source and deduplication
@@ -183,7 +286,7 @@ class Conference(models.Model):
         max_length=100,
         null=True,
         blank=True,
-        help_text="Source of conference information (e.g., 'EventBrite', 'LinkedIn')"
+        help_text="Source of event information (e.g., 'EventBrite', 'LinkedIn')"
     )
     
     source_url = models.URLField(
@@ -191,7 +294,7 @@ class Conference(models.Model):
         max_length=500,
         null=True,
         blank=True,
-        help_text="URL of the conference source"
+        help_text="URL of the event source"
     )
     
     hash = models.CharField(
@@ -206,7 +309,7 @@ class Conference(models.Model):
     is_active = models.BooleanField(
         default=True,
         db_index=True,
-        help_text="Whether this conference is active/visible"
+        help_text="Whether this event is active/visible"
     )
     
     # Timestamps
@@ -222,16 +325,18 @@ class Conference(models.Model):
     )
     
     class Meta:
-        db_table = 'bleisure_conference'
-        verbose_name = 'Conference'
-        verbose_name_plural = 'Conferences'
+        db_table = 'bleisure_event'
+        verbose_name = 'Event'
+        verbose_name_plural = 'Events'
         ordering = ['-created_at']
         
         # Database indexes for common queries
         indexes = [
             models.Index(fields=['created_at']),
             models.Index(fields=['city']),
+            models.Index(fields=['type']),
             models.Index(fields=['start_date']),
+            models.Index(fields=['source_url']),
             models.Index(fields=['is_active', '-created_at']),
             models.Index(fields=['city', 'start_date']),
         ]
@@ -245,7 +350,7 @@ class Conference(models.Model):
             counter = 1
             
             # Ensure slug uniqueness
-            while Conference.objects.filter(slug=slug).exclude(id=self.id).exists():
+            while Event.objects.filter(slug=slug).exclude(id=self.id).exists():
                 slug = f"{base_slug}-{counter}"
                 counter += 1
             
@@ -259,13 +364,13 @@ class Conference(models.Model):
         super().save(*args, **kwargs)
     
     def get_average_rating(self):
-        """Calculate average rating from all user ratings."""
+        """Calculate average rating from all user reviews."""
         from django.db.models import Avg
-        avg = self.user_ratings.aggregate(Avg('rating'))['rating__avg']
+        avg = self.user_reviews.aggregate(Avg('rating'))['rating__avg']
         return round(avg, 2) if avg else 0.0
     
     def get_interested_count(self):
-        """Get actual interested count from UserConferenceInterest records."""
+        """Get actual interested count from UserEventInterest records."""
         return self.interested_users.count()
     
     def update_metrics(self):
@@ -278,24 +383,92 @@ class Conference(models.Model):
         return f"{self.title} ({self.city}, {self.country})"
 
 
-class UserConferenceInterest(models.Model):
+class SubEvent(models.Model):
     """
-    Track user interest in conferences.
-    Prevents duplicate interest markings and enables user-conference relationship tracking.
+    SubEvent model for sub-events within an Event.
+    Represents agendas or side events within a parent event.
+    """
+    
+    TYPE_CHOICES = [
+        ('agenda', 'Agenda'),
+        ('side_event', 'Side Event')
+    ]
+    
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name='sub_events',
+        help_text="Parent event"
+    )
+    
+    title = models.CharField(
+        max_length=255,
+        help_text="SubEvent title"
+    )
+    
+    type = models.CharField(
+        max_length=20,
+        choices=TYPE_CHOICES,
+        help_text="Type of sub-event"
+    )
+    
+    start_time = models.DateTimeField(
+        help_text="Start time of sub-event"
+    )
+    
+    end_time = models.DateTimeField(
+        help_text="End time of sub-event"
+    )
+    
+    location = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="Location within venue"
+    )
+    
+    description = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Description of sub-event"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'bleisure_sub_event'
+        verbose_name = 'Sub Event'
+        verbose_name_plural = 'Sub Events'
+        ordering = ['start_time']
+        indexes = [
+            models.Index(fields=['event']),
+            models.Index(fields=['start_time']),
+            models.Index(fields=['event', 'type']),  # Composite index for filtering by event and type
+        ]
+    
+    def __str__(self):
+        return f"{self.title} ({self.event.title})"
+
+
+class UserEventInterest(models.Model):
+    """
+    Track user interest in events.
+    Prevents duplicate interest markings and enables user-event relationship tracking.
     """
     
     user = models.ForeignKey(
         CustomUser,
         on_delete=models.CASCADE,
-        related_name='conference_interests',
+        related_name='event_interests',
         help_text="User who marked interest"
     )
     
-    conference = models.ForeignKey(
-        Conference,
+    event = models.ForeignKey(
+        Event,
         on_delete=models.CASCADE,
         related_name='interested_users',
-        help_text="Conference the user is interested in"
+        help_text="Event the user is interested in"
     )
     
     created_at = models.DateTimeField(
@@ -304,71 +477,268 @@ class UserConferenceInterest(models.Model):
     )
     
     class Meta:
-        db_table = 'bleisure_user_conference_interest'
-        verbose_name = 'User Conference Interest'
-        verbose_name_plural = 'User Conference Interests'
-        unique_together = [['user', 'conference']]  # Prevent duplicate interests
+        db_table = 'bleisure_user_event_interest'
+        verbose_name = 'User Event Interest'
+        verbose_name_plural = 'User Event Interests'
+        unique_together = [['user', 'event']]  # Prevent duplicate interests
         ordering = ['-created_at']
         
         # Database indexes
         indexes = [
             models.Index(fields=['user']),
-            models.Index(fields=['conference']),
-            models.Index(fields=['user', 'conference']),
+            models.Index(fields=['event']),
+            models.Index(fields=['user', 'event']),
         ]
     
     def __str__(self):
-        return f"{self.user.email} interested in {self.conference.title}"
+        return f"{self.user.email} interested in {self.event.title}"
 
 
-class UserConferenceRating(models.Model):
+class UserEventReview(models.Model):
     """
-    Track user ratings for conferences.
-    Allows multiple ratings per conference from different users.
+    Track user reviews/ratings for events.
+    Allows multiple reviews per event from different users.
     Enables rating aggregation for display_rating calculation.
     """
     
     user = models.ForeignKey(
         CustomUser,
         on_delete=models.CASCADE,
-        related_name='conference_ratings',
-        help_text="User who submitted the rating"
+        related_name='event_reviews',
+        help_text="User who submitted the review"
     )
     
-    conference = models.ForeignKey(
-        Conference,
+    event = models.ForeignKey(
+        Event,
         on_delete=models.CASCADE,
-        related_name='user_ratings',
-        help_text="Conference being rated"
+        related_name='user_reviews',
+        help_text="Event being reviewed"
     )
     
     rating = models.FloatField(
         help_text="Rating value (0-5 stars)"
     )
     
+    review_text = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Detailed review text"
+    )
+    
     created_at = models.DateTimeField(
         auto_now_add=True,
-        help_text="When rating was submitted"
+        help_text="When review was submitted"
     )
     
     updated_at = models.DateTimeField(
         auto_now=True,
-        help_text="When rating was last updated"
+        help_text="When review was last updated"
     )
     
     class Meta:
-        db_table = 'bleisure_user_conference_rating'
-        verbose_name = 'User Conference Rating'
-        verbose_name_plural = 'User Conference Ratings'
-        unique_together = [['user', 'conference']]  # One rating per user per conference
+        db_table = 'bleisure_user_event_review'
+        verbose_name = 'User Event Review'
+        verbose_name_plural = 'User Event Reviews'
+        unique_together = [['user', 'event']]  # One review per user per event
         ordering = ['-created_at']
         
         # Database indexes
         indexes = [
             models.Index(fields=['user']),
-            models.Index(fields=['conference']),
-            models.Index(fields=['user', 'conference']),
+            models.Index(fields=['event']),
+            models.Index(fields=['user', 'event']),
         ]
     
     def __str__(self):
-        return f"{self.user.email} rated {self.conference.title}: {self.rating}/5"
+        return f"{self.user.email} reviewed {self.event.title}: {self.rating}/5"
+
+
+class Speaker(models.Model):
+    """
+    Speaker model for event speakers.
+    Tracks speakers participating in events.
+    """
+    
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name='speakers',
+        help_text="Event where speaker is presenting"
+    )
+    
+    name = models.CharField(
+        max_length=255,
+        help_text="Speaker's full name"
+    )
+    
+    company = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="Company the speaker works at"
+    )
+    
+    designation = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="Speaker's job title/designation"
+    )
+    
+    bio = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Speaker biography"
+    )
+    
+    profile_image = models.URLField(
+        null=True,
+        blank=True,
+        help_text="Speaker's profile image URL"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'bleisure_speaker'
+        verbose_name = 'Speaker'
+        verbose_name_plural = 'Speakers'
+        ordering = ['name']
+        indexes = [
+            models.Index(fields=['event']),
+            models.Index(fields=['name']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} ({self.event.title})"
+
+
+class Exhibitor(models.Model):
+    """
+    Exhibitor model for event exhibitors/sponsors.
+    Tracks companies exhibiting at events.
+    """
+    
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name='exhibitors',
+        help_text="Event where exhibitor is participating"
+    )
+    
+    name = models.CharField(
+        max_length=255,
+        help_text="Exhibitor/company name"
+    )
+    
+    website = models.URLField(
+        null=True,
+        blank=True,
+        help_text="Exhibitor website URL"
+    )
+    
+    description = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Company/exhibitor description"
+    )
+    
+    booth_number = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="Booth number at event"
+    )
+    
+    logo = models.URLField(
+        null=True,
+        blank=True,
+        help_text="Exhibitor logo URL"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'bleisure_exhibitor'
+        verbose_name = 'Exhibitor'
+        verbose_name_plural = 'Exhibitors'
+        ordering = ['name']
+        indexes = [
+            models.Index(fields=['event']),
+            models.Index(fields=['name']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} ({self.event.title})"
+
+
+class Deal(models.Model):
+    """
+    Deal model for event-specific deals and offers.
+    Tracks special offers associated with events.
+    """
+    
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name='deals',
+        help_text="Event associated with this deal"
+    )
+    
+    title = models.CharField(
+        max_length=255,
+        help_text="Deal title"
+    )
+    
+    description = models.TextField(
+        help_text="Deal description"
+    )
+    
+    discount_percentage = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Discount percentage (0-100)"
+    )
+    
+    discount_amount = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Fixed discount amount"
+    )
+    
+    code = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="Discount/promo code"
+    )
+    
+    expiry_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Deal expiry date"
+    )
+    
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether the deal is active"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'bleisure_deal'
+        verbose_name = 'Deal'
+        verbose_name_plural = 'Deals'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['event']),
+            models.Index(fields=['is_active']),
+            models.Index(fields=['expiry_date']),
+        ]
+    
+    def __str__(self):
+        return f"{self.title} ({self.event.title})"

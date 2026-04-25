@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import UserProfile, Conference
+from .models import UserProfile, Event, SubEvent, UserEventInterest, UserEventReview, Speaker, Exhibitor, Deal
 from users.models import CustomUser
 from datetime import date
 
@@ -157,17 +157,96 @@ class ProfileDetailSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'user_id', 'created_at', 'updated_at']
 
 
-# ==================== CONFERENCE SERIALIZERS ====================
+# ==================== EVENT SERIALIZERS ====================
 
 
-class ConferenceCreateSerializer(serializers.ModelSerializer):
+class SubEventSerializer(serializers.ModelSerializer):
     """
-    Serializer for creating Conference objects.
+    Serializer for SubEvent objects.
+    Used for nested sub-events within Event details.
+    """
+    
+    class Meta:
+        model = SubEvent
+        fields = [
+            'id',
+            'title',
+            'type',
+            'start_time',
+            'end_time',
+            'location',
+            'description'
+        ]
+        read_only_fields = ['id']
+
+
+class SpeakerSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Speaker objects.
+    Used for nested speakers within Event details.
+    """
+    
+    class Meta:
+        model = Speaker
+        fields = [
+            'id',
+            'name',
+            'company',
+            'designation',
+            'bio',
+            'profile_image'
+        ]
+        read_only_fields = ['id']
+
+
+class ExhibitorSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Exhibitor objects.
+    Used for nested exhibitors within Event details.
+    """
+    
+    class Meta:
+        model = Exhibitor
+        fields = [
+            'id',
+            'name',
+            'website',
+            'description',
+            'booth_number',
+            'logo'
+        ]
+        read_only_fields = ['id']
+
+
+class DealSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Deal objects.
+    Used for nested deals within Event details.
+    """
+    
+    class Meta:
+        model = Deal
+        fields = [
+            'id',
+            'title',
+            'description',
+            'discount_percentage',
+            'discount_amount',
+            'code',
+            'expiry_date',
+            'is_active'
+        ]
+        read_only_fields = ['id']
+
+
+class EventCreateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for creating Event objects.
     Handles validation and prevents duplicates using source_url or hash.
     """
     
     class Meta:
-        model = Conference
+        model = Event
         fields = [
             'title',
             'description',
@@ -176,7 +255,22 @@ class ConferenceCreateSerializer(serializers.ModelSerializer):
             'city',
             'country',
             'venue',
+            'address',
+            'latitude',
+            'longitude',
             'timezone',
+            'type',
+            'category',
+            'tags',
+            'organizer_name',
+            'price_min',
+            'price_max',
+            'currency',
+            'is_free',
+            'banner_image',
+            'website_url',
+            'registration_url',
+            'is_featured',
             'source',
             'source_url',
             'is_active'
@@ -222,30 +316,30 @@ class ConferenceCreateSerializer(serializers.ModelSerializer):
         # Check for duplicate using source_url
         source_url = data.get('source_url')
         if source_url:
-            existing = Conference.objects.filter(source_url=source_url).exists()
+            existing = Event.objects.filter(source_url=source_url).exists()
             if existing:
                 raise serializers.ValidationError({
-                    'source_url': 'Conference with this source URL already exists.'
+                    'source_url': 'Event with this source URL already exists.'
                 })
         
         return data
     
     def create(self, validated_data):
-        """Create conference instance."""
-        conference = Conference.objects.create(**validated_data)
-        return conference
+        """Create event instance."""
+        event = Event.objects.create(**validated_data)
+        return event
 
 
-class ConferenceListSerializer(serializers.ModelSerializer):
+class EventListSerializer(serializers.ModelSerializer):
     """
-    Serializer for listing Conference objects.
+    Serializer for listing Event objects.
     Lightweight serializer for list views with pagination.
     """
     
     days_count = serializers.SerializerMethodField()
     
     class Meta:
-        model = Conference
+        model = Event
         fields = [
             'id',
             'title',
@@ -257,9 +351,17 @@ class ConferenceListSerializer(serializers.ModelSerializer):
             'end_date',
             'days_count',
             'timezone',
+            'type',
+            'category',
+            'price_min',
+            'price_max',
+            'currency',
+            'is_free',
             'rating',
             'interested_count',
+            'banner_image',
             'source',
+            'is_featured',
             'is_active',
             'created_at'
         ]
@@ -272,21 +374,25 @@ class ConferenceListSerializer(serializers.ModelSerializer):
         ]
     
     def get_days_count(self, obj):
-        """Calculate number of days for the conference."""
+        """Calculate number of days for the event."""
         delta = obj.end_date - obj.start_date
         return delta.days + 1
 
 
-class ConferenceDetailSerializer(serializers.ModelSerializer):
+class EventDetailSerializer(serializers.ModelSerializer):
     """
-    Serializer for detailed Conference information.
-    Used for retrieve operations.
+    Serializer for detailed Event information.
+    Used for retrieve operations with nested sub_events, speakers, exhibitors, deals.
     """
     
     days_count = serializers.SerializerMethodField()
+    sub_events = SubEventSerializer(many=True, read_only=True)
+    speakers = SpeakerSerializer(many=True, read_only=True)
+    exhibitors = ExhibitorSerializer(many=True, read_only=True)
+    deals = DealSerializer(many=True, read_only=True)
     
     class Meta:
-        model = Conference
+        model = Event
         fields = [
             'id',
             'title',
@@ -295,12 +401,31 @@ class ConferenceDetailSerializer(serializers.ModelSerializer):
             'city',
             'country',
             'venue',
+            'address',
+            'latitude',
+            'longitude',
             'start_date',
             'end_date',
             'days_count',
             'timezone',
+            'type',
+            'category',
+            'tags',
+            'organizer_name',
+            'price_min',
+            'price_max',
+            'currency',
+            'is_free',
+            'banner_image',
+            'website_url',
+            'registration_url',
+            'is_featured',
             'rating',
             'interested_count',
+            'sub_events',
+            'speakers',
+            'exhibitors',
+            'deals',
             'source',
             'source_url',
             'is_active',
@@ -316,23 +441,23 @@ class ConferenceDetailSerializer(serializers.ModelSerializer):
         ]
     
     def get_days_count(self, obj):
-        """Calculate number of days for the conference."""
+        """Calculate number of days for the event."""
         delta = obj.end_date - obj.start_date
         return delta.days + 1
 
 
-class ConferenceUpdateSerializer(serializers.ModelSerializer):
+class EventUpdateSerializer(serializers.ModelSerializer):
     """
-    Serializer for updating Conference objects.
-    Allows partial updates of conference information.
+    Serializer for updating Event objects.
+    Allows partial updates of event information.
     
     Note: rating and interested_count are managed through dedicated endpoints:
-    - POST /conferences/{id}/rate/ - to update rating
-    - POST /conferences/{id}/mark-interested/ - to increment interested_count
+    - POST /events/{id}/review/ - to update rating
+    - POST /events/{id}/mark-interested/ - to increment interested_count
     """
     
     class Meta:
-        model = Conference
+        model = Event
         fields = [
             'title',
             'description',
@@ -341,7 +466,22 @@ class ConferenceUpdateSerializer(serializers.ModelSerializer):
             'city',
             'country',
             'venue',
+            'address',
+            'latitude',
+            'longitude',
             'timezone',
+            'type',
+            'category',
+            'tags',
+            'organizer_name',
+            'price_min',
+            'price_max',
+            'currency',
+            'is_free',
+            'banner_image',
+            'website_url',
+            'registration_url',
+            'is_featured',
             'is_active'
         ]
     
